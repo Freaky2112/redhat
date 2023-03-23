@@ -1,0 +1,36 @@
+# Do Distro Upgrade
+- name: Do Distro Upgrade
+  tags: upgrade
+  become: true
+  ansible.builtin.yum:
+    update_only: yes   update_cache: yes
+  when: ansible_os_family == "RedHat"
+
+# remove dependencies
+- name: Remove dependencies that are no longer required.
+  ansible.builtin.yum:
+    autoremove: yes
+
+# reboot after update
+- name: Reboot When Packages were updated
+  shell: needs-restarting -r
+  failed_when: false
+  register: reboot_required
+  changed_when: false
+
+- when: updates.stdout_lines | length > 0 and reboot_required.rc != 0
+  block:
+    - name: reboot the server if required
+      shell: sleep 3; reboot
+      ignore_errors: true
+      changed_when: false
+      async: 1
+      poll: 0
+    - name: wait for server to come back after reboot
+      wait_for_connection:
+        timeout: 600
+        delay: 20
+      register: reboot_result
+    - name: reboot time
+      debug:
+        msg: "The system rebooted in {{ reboot_result.elapsed }} seconds."
